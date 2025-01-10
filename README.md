@@ -14,7 +14,28 @@ Improve gaming performance with CPU/GPU optimization, lag reduction, and RAM opt
 ## Features
 
 ```
-- Disable log dropbox
+- Preload Graphic & EGL Libraries
+- Games Manager Mode Performance
+- MIUI Boost Feature
+- Add Setprop Performance Tuning
+- Add Setprop Smooth UI
+- Set Activity Manager Constants
+- Cmd Stats Clear Puller Cache
+- Cmd Ab & Wb Logging Disable
+- Set Match Content Frame Rate Pref 2
+- Logcat -c Wrap
+- Disable SimplePerf Log Fatal Log To Android Buffer
+- Clear Watch Heap
+- Disable Looper Stats
+- Memory Factor Set Critical
+- Disable Adaptive Power Saver
+- Enable Fixed Performance mode
+- Disable Anti-Aliasing
+- Composition Type [ GPU ]
+- Optimization HWUI With Setprop
+- Optimization SF With Setprop
+- Optimization FPS With Setprop
+- Other
 
 ```
 
@@ -34,11 +55,8 @@ Please report compatibility for other devices.
 
 ## Thanks To
 
-- @Bias_khaliq & @reljawa & @pedrozzz0
-
-- @NotZeetaa & @hirauki & @akemiinawa
-
-- @tytydraco @iamlooper @LeanHijosdesusMadres
+- @reljawa source preload
+- @bang_levv source game list
 
 ---
 
