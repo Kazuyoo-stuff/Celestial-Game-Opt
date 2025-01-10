@@ -1,2 +1,2 @@
-# Celestial-Game-Opt
+# Celestial-Game-Opt 🪽
 Optimization For Your Games With High Performance
