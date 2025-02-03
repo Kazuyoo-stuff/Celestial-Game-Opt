@@ -14,8 +14,8 @@ Improve gaming performance with CPU/GPU optimization, lag reduction, and RAM opt
 ## Features
 
 ```
-- Preload Graphic & EGL Libraries
 - Games Manager Mode Performance
+- Bypass Refresh Rate For BBK & UBBK
 - MIUI Boost Feature
 - Add Setprop Performance Tuning
 - Add Setprop Smooth UI
