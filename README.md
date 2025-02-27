@@ -55,7 +55,8 @@ Please report compatibility for other devices.
 
 ## Thanks To
 
-- @reljawa source preload
+- @reljawa source tweak
+- @vestia_zeta source tweak
 - @bang_levv source game list
 
 ---
