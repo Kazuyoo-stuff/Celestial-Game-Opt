@@ -18,30 +18,41 @@ send_notification() {
 
 # ----------------- OPTIMIZATION SECTIONS -----------------
 game_manager() {
-    if [ -z "$GAME" ] || [ ! -f "$GAME" ]; then
-        ui_print "File GAME tidak ditemukan atau tidak ditentukan."
+    if [[ -z "$GAME" || ! -f "$GAME" ]]; then
+        ui_print "- GAME file not found or not specified."
+        return 1
+    fi
+
+    if [[ -z "$FPS" ]]; then
+        ui_print "- FPS value is not specified."
         return 1
     fi
 
     while IFS= read -r game; do
-        [ -z "$game" ] && continue
+        [[ -z "$game" ]] && continue
 
-        cmd game mode performance "$game" set --fps "$FPS"
-        
+        if cmd game mode performance "$game" set --fps "$FPS"; then
+            ui_print "- Successfully set Game Mode for $game"
+        else
+            ui_print "- Failed to set Game Mode for $game"
+        fi
+
     done < "$GAME"
 }
    
 miui_boost_feature() {
-    if [[ $POWER_MIUI = "middle" ]]; then
-       setprop debug.power.monitor_tools false
-       write system POWER_BALANCED_MODE_OPEN 0
-       write system POWER_PERFORMANCE_MODE_OPEN 1
-       write system POWER_SAVE_MODE_OPEN 0
-       write system power_mode middle
-       write system POWER_SAVE_PRE_HIDE_MODE performance
-       write system POWER_SAVE_PRE_SYNCHRONIZE_ENABLE 1
+    if [[ "$POWER_MIUI" == "middle" ]]; then
+        setprop debug.power.monitor_tools false
+        
+        write system POWER_BALANCED_MODE_OPEN 0
+        write system POWER_PERFORMANCE_MODE_OPEN 1
+        write system POWER_SAVE_MODE_OPEN 0
+        write system power_mode middle
+        write system POWER_SAVE_PRE_HIDE_MODE performance
+        write system POWER_SAVE_PRE_SYNCHRONIZE_ENABLE 1
     else
-        ui_print "[WARN] ERRORS!"
+        ui_print "- POWER_MIUI value is invalid or not set"
+        return 1
     fi
 }
 
@@ -71,28 +82,49 @@ bypass_refresh_rate() {
   settings put system user_refresh_rate "$FPS"
   settings put system max_refresh_rate "$FPS"
   settings put system min_refresh_rate "$FPS"
-  ui_print "set fps = $FPS"
 }
   
 final_optimization() {
-    setprop debug.performance.tuning 1
-    setprop debug.sf.hw 1
-    setprop debug.egl.hw 1
-    write global activity_manager_constants "power_check_max_cpu_1=0,power_check_max_cpu_2=0,power_check_max_cpu_3=0,power_check_max_cpu_4=0,power_check_max_cpu_5=0,power_check_max_cpu_6=0,power_check_max_cpu_7=0,power_check_max_cpu_8=0"
-    write global activity_starts_logging_enabled 0
-    write secure high_priority 1
-    cmd stats clear-puller-cache
-    cmd display ab-logging-disable
-    cmd display dwb-logging-disable
-    cmd display set-match-content-frame-rate-pref 2
-    logcat -c --wrap
-    simpleperf --log fatal --log-to-android-buffer 0
-    cmd activity clear-watch-heap -a
-    cmd looper_stats disable
-    am memory-factor set CRITICAL
-    cmd power set-adaptive-power-saver-enabled false
-    cmd power set-fixed-performance-mode-enabled true
-    cmd thermalservice override-status 0
+# Enable performance tuning & hardware acceleration
+  setprop debug.performance.tuning 1
+  setprop debug.sf.hw 1
+  setprop debug.egl.hw 1
+
+# Optimize CPU power management
+  CPU_OPTS=""
+  for i in $(seq 1 8); do
+     CPU_OPTS="${CPU_OPTS}power_check_max_cpu_${i}=0,"
+  done
+  write_sys global activity_manager_constants "${CPU_OPTS%,}"
+
+# Disable logging & set high priority
+  write global activity_starts_logging_enabled 0
+  write secure high_priority 1
+
+# Clear cache & disable unnecessary statistics
+  cmd stats clear-puller-cache
+  cmd display ab-logging-disable
+  cmd display dwb-logging-disable
+  cmd looper_stats disable
+  am memory-factor set CRITICAL
+
+# Adjust refresh rate preferences
+  cmd display set-match-content-frame-rate-pref 2
+
+# Disable Adaptive Power Saver & enable performance mode
+  cmd power set-adaptive-power-saver-enabled false
+  cmd power set-fixed-performance-mode-enabled true
+
+# Disable thermal limitations
+  cmd thermalservice override-status 0
+
+# Run simpleperf for lighter logging
+  simpleperf --log fatal --log-to-android-buffer 6
+  
+# Adjust animation
+  write global window_animation_scale 0.8
+  write global transition_animation_scale 0.8
+  write global animator_duration_scale 0.8
 }
   
 # ----------------- MAIN EXECUTION -----------------
