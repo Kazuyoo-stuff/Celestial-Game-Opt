@@ -13,7 +13,7 @@ POWER_MIUI=$(settings get system power_mode)
 
 send_notification() {
     # Notify user of optimization completion
-    cmd notification post -S bigtext -t 'Celestial-Game-Opt 🪽' 'tag' 'Status : Optimization Completed!' >/dev/null 2>&1
+    cmd notification post -S bigtext -t 'Celestial-Game-Opt 🕊️' 'tag' 'Status : Optimization Completed!' >/dev/null 2>&1
 }
 
 # ----------------- OPTIMIZATION SECTIONS -----------------
