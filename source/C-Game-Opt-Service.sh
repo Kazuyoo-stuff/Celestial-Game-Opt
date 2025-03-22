@@ -9,37 +9,37 @@
 # ----------------- HELPER FUNCTIONS -----------------
 source /storage/emulated/0/Kazu/META-INF/com/google/android/update-binary
 
-POWER_MIUI=$(settings get system power_mode)
-
-send_notification() {
-    # Notify user of optimization completion
-    cmd notification post -S bigtext -t 'Celestial-Game-Opt 🕊️' 'tag' 'Status : Optimization Completed!' >/dev/null 2>&1
-}
+# Variable
+  POWER_MIUI=$(settings get system power_mode)
+  CPU_OPTS=""
+  GAME_LIST=$(cmd package list packages | grep -E "$GAME" | cut -f 2 -d ":")
+  GAME_LIST=""
 
 # ----------------- OPTIMIZATION SECTIONS -----------------
 game_manager() {
-    if [[ -z "$GAME" || ! -f "$GAME" ]]; then
-        ui_print "- GAME file not found or not specified."
-        return 1
-    fi
-
-    if [[ -z "$FPS" ]]; then
-        ui_print "- FPS value is not specified."
-        return 1
-    fi
-
+# Get a list of installed game packages based on game list
     while IFS= read -r game; do
         [[ -z "$game" ]] && continue
-
-        if cmd game mode performance "$game" set --fps "$FPS"; then
-            ui_print "- Successfully set Game Mode for $game"
-        else
-            ui_print "- Failed to set Game Mode for $game"
+            package=$(cmd package list packages | grep -E "$game" | cut -f 2 -d ":")
+        if [[ -n "$package" ]]; then
+            GAME_LIST+="$package "
         fi
+    done <<< "$GAME"
 
-    done < "$GAME"
+# Loop each package and set Game Mode and Overlay
+    for package in $GAME_LIST; do
+        if cmd game mode performance "$package" set --fps "$FPS"; then
+            if cmd device_config put game_overlay "$package" mode=2,downscaleFactor=0.9:mode=3,downscaleFactor=0.7; then
+                ui_print "- Successfully set Game Mode for $package"
+            else
+                ui_print "- Failed to apply overlay settings for $package"
+            fi
+        else
+            ui_print "- Failed to set Game Mode for $package"
+        fi
+    done
 }
-   
+
 miui_boost_feature() {
     if [[ "$POWER_MIUI" == "middle" ]]; then
         setprop debug.power.monitor_tools false
@@ -78,10 +78,10 @@ bypass_refresh_rate() {
     fi
 
 # Set refresh rate
-  settings put system peak_refresh_rate "$FPS"
-  settings put system user_refresh_rate "$FPS"
-  settings put system max_refresh_rate "$FPS"
-  settings put system min_refresh_rate "$FPS"
+  write system peak_refresh_rate "$FPS"
+  write system user_refresh_rate "$FPS"
+  write system max_refresh_rate "$FPS"
+  write system min_refresh_rate "$FPS"
 }
   
 final_optimization() {
@@ -89,13 +89,18 @@ final_optimization() {
   setprop debug.performance.tuning 1
   setprop debug.sf.hw 1
   setprop debug.egl.hw 1
+  
+# cpu cluster & powerhint configuration (@reljawa)
+  setprop debug.cluster_little-set_his_speed $(cat /sys/devices/system/cpu/cpu1/cpufreq/cpuinfo_min_freq)
+  setprop debug.cluster_big-set_his_speed $(cat /sys/devices/system/cpu/cpu1/cpufreq/cpuinfo_max_freq)
+  setprop debug.powehint.cluster_little-set_his_speed $(cat /sys/devices/system/cpu/cpu1/cpufreq/cpuinfo_min_freq)
+  setprop debug.powehint.cluster_big-set_his_speed $(cat /sys/devices/system/cpu/cpu1/cpufreq/cpuinfo_max_freq)
 
 # Optimize CPU power management
-  CPU_OPTS=""
   for i in $(seq 1 8); do
      CPU_OPTS="${CPU_OPTS}power_check_max_cpu_${i}=0,"
   done
-  write_sys global activity_manager_constants "${CPU_OPTS%,}"
+  write global activity_manager_constants "${CPU_OPTS%,}"
 
 # Disable logging & set high priority
   write global activity_starts_logging_enabled 0
@@ -103,10 +108,20 @@ final_optimization() {
 
 # Clear cache & disable unnecessary statistics
   cmd stats clear-puller-cache
+  cmd activity clear-debug-app
+  cmd activity clear-watch-heap -a
+  cmd stats print-logs 0 # <- root required
   cmd display ab-logging-disable
   cmd display dwb-logging-disable
+  cmd display dmd-logging-disable
   cmd looper_stats disable
+  
+# Overrides memory pressure factor
   am memory-factor set CRITICAL
+ 
+# reset throttling on application shortcuts
+  cmd shortcut reset-throttling --user 0
+  cmd shortcut reset-all-throttling
 
 # Adjust refresh rate preferences
   cmd display set-match-content-frame-rate-pref 2
@@ -125,6 +140,9 @@ final_optimization() {
   write global window_animation_scale 0.8
   write global transition_animation_scale 0.8
   write global animator_duration_scale 0.8
+  
+# Disable app standby ( battery usage may increase )
+  write global app_standby_enabled 0
 }
   
 # ----------------- MAIN EXECUTION -----------------
@@ -136,4 +154,4 @@ main() {
 }
 
 # Main Execution & Exit script successfully
- sync && main && send_notification
+ sync && main
