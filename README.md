@@ -15,14 +15,18 @@ Improve gaming performance with CPU/GPU optimization, lag reduction, and RAM opt
 
 ```
 - Games Manager Mode Performance
+- Game Overlay Mode Performance
+- Optimize Cpu & Gpu
 - Bypass Refresh Rate For BBK & UBBK
 - MIUI Boost Feature
 - Add Setprop Performance Tuning
 - Add Setprop Smooth UI
 - Set Activity Manager Constants
 - Cmd Stats Clear Puller Cache
-- Cmd Ab & Wb Logging Disable
+- Cmd stats print logs 0
+- Cmd ab, dwb & dmd Logging Disable
 - Set Match Content Frame Rate Pref 2
+- Reset throttling on application shortcuts
 - Logcat -c Wrap
 - Disable SimplePerf Log Fatal Log To Android Buffer
 - Clear Watch Heap
@@ -35,6 +39,7 @@ Improve gaming performance with CPU/GPU optimization, lag reduction, and RAM opt
 - Optimization HWUI With Setprop
 - Optimization SF With Setprop
 - Optimization FPS With Setprop
+- Using skiagl rendering
 - Other
 
 ```
