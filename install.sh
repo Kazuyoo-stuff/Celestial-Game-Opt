@@ -18,7 +18,7 @@ PROPFILE=true
 POSTFSDATA=true
 LATESTARTSERVICE=true
 NAME="Celestial-Game-Opt | Kzyo"
-VERSION="1.3"
+VERSION="1.4"
 DATE="Wed 8 Jan 2025"
 
 # Function to print with a clearer format
@@ -52,8 +52,6 @@ ui_print "- Trimming up Partitions"
 execute_task "trim_partition"
 ui_print "- Deleting Trash and Logs"
 execute_task "delete_trash_logs"
-ui_print "- Performing Memory Purge"
-execute_task "ram_cleanup"
 ui_print "- Adjustments Advanced settings"
 execute_task "install_tweak"
 ui_print "- Done"
