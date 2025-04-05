@@ -29,7 +29,7 @@ game_manager() {
 
 # Loop each package and set Game Mode and Overlay
     for package in $GAME_LIST; do
-        if cmd game mode performance "$package" set --fps "$FPS"; then
+        if cmd game mode performance "$package"; then
             if cmd device_config put game_overlay "$package" mode=2,fps=120:mode=3,fps=60; then
                 ui_print "- Successfully set Game Mode for $package"
             else
