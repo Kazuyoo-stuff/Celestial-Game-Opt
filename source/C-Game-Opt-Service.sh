@@ -10,10 +10,11 @@
 source /storage/emulated/0/Kazu/META-INF/com/google/android/update-binary
 
 # Variable
-  POWER_MIUI=$(settings get system power_mode)
+  POWER_MIUI=$(settings get system POWER_PERFORMANCE_MODE_OPEN)
   CPU_OPTS=""
   GAME_LIST=$(cmd package list packages | grep -E "$GAME" | cut -f 2 -d ":")
   GAME_LIST=""
+  FPS=$(dumpsys display | grep -oE 'fps=[0-9]+' | awk -F '=' '{print $2}' | head -n 1)
 
 # ----------------- OPTIMIZATION SECTIONS -----------------
 game_manager() {
@@ -29,7 +30,7 @@ game_manager() {
 # Loop each package and set Game Mode and Overlay
     for package in $GAME_LIST; do
         if cmd game mode performance "$package" set --fps "$FPS"; then
-            if cmd device_config put game_overlay "$package" mode=2,downscaleFactor=0.9:mode=3,downscaleFactor=0.7; then
+            if cmd device_config put game_overlay "$package" mode=2,fps=120:mode=3,fps=60; then
                 ui_print "- Successfully set Game Mode for $package"
             else
                 ui_print "- Failed to apply overlay settings for $package"
@@ -41,18 +42,20 @@ game_manager() {
 }
 
 miui_boost_feature() {
-    if [[ "$POWER_MIUI" == "middle" ]]; then
+    if [[ "$POWER_MIUI" == "1" ]]; then
         setprop debug.power.monitor_tools false
         
-        write system POWER_BALANCED_MODE_OPEN 0
         write system POWER_PERFORMANCE_MODE_OPEN 1
         write system POWER_SAVE_MODE_OPEN 0
-        write system power_mode middle
-        write system POWER_SAVE_PRE_HIDE_MODE performance
-        write system POWER_SAVE_PRE_SYNCHRONIZE_ENABLE 1
+        write system power_mode high
+        write system POWER_SAVE_PRE_HIDE_MODE ultimate
+        write system POWER_SAVE_PRE_SYNCHRONIZE_ENABLE 0
+        write system speed_mode 1
     else
-        ui_print "- POWER_MIUI value is invalid or not set"
-        return 1
+        write system POWER_SAVE_MODE_OPEN 0
+        write system power_mode high
+        write system POWER_SAVE_PRE_HIDE_MODE ultimate
+        write system POWER_SAVE_PRE_SYNCHRONIZE_ENABLE 0
     fi
 }
 
@@ -60,9 +63,6 @@ bypass_refresh_rate() {
 # Get the device brand
   BBK_BRANDS="oppo vivo oneplus realme iqoo"
   BRAND=$(getprop ro.product.brand | tr '[:upper:]' '[:lower:]')
-
-# Get FPS value from system
-  FPS=$(dumpsys display | grep -oE 'fps=[0-9]+' | awk -F '=' '{print $2}' | head -n 1)
 
 # If the device is BBK, make sure the value is between 1-4
     if echo "$BBK_BRANDS" | grep -wq "$BRAND"; then
@@ -83,7 +83,63 @@ bypass_refresh_rate() {
   write system max_refresh_rate "$FPS"
   write system min_refresh_rate "$FPS"
 }
-  
+
+surfaceflinger_autoset() {
+# Get screen refresh rate
+refresh_rate=$(dumpsys SurfaceFlinger | grep "refresh-rate" | awk '{print $3}' | tr -d ' ')
+
+# Calculate time per frame in nanoseconds
+frame_time=$(awk "BEGIN {printf \"%.0f\", (1 / $refresh_rate) * 1000000000}")
+
+# Calculate various offsets based on frame_time
+phazev1=$((frame_time / 8))
+phazev2=$((frame_time / 5))
+phazev3=$((frame_time / 3))
+phazev4=$((frame_time / 2))
+phazev5=$((frame_time * 2 / 3))
+phazev6=$((frame_time))
+phazev7=$((frame_time * 5 / 4))
+
+# Apply SurfaceFlinger settings with optimal phazev 
+setprop debug.sf.earlyGl.app.duration "$phazev5"
+setprop debug.sf.earlyGl.sf.duration "$phazev5"
+setprop debug.sf.hwc.min.duration "$phazev5"
+setprop debug.sf.early.app.duration "$phazev5"
+setprop debug.sf.late.app.duration "$phazev6"
+setprop debug.sf.early.sf.duration "$phazev5"
+setprop debug.sf.late.sf.duration "$phazev6"
+
+setprop debug.sf.set_idle_timer_ms "$phazev4"
+setprop debug.sf.layer_caching_active_layer_timeout_ms "$phazev3"
+
+setprop debug.sf.high_fps_early_app_phase_offset_ns "-$phazev3"
+setprop debug.sf.high_fps_late_app_phase_offset_ns "$phazev2"
+setprop debug.sf.high_fps_early_sf_phase_offset_ns "-$phazev3"
+setprop debug.sf.high_fps_late_sf_phase_offset_ns "$phazev2"
+setprop debug.sf.high_fps_early_gl_app_phase_offset_ns "$phazev1"
+setprop debug.sf.high_fps_early_gl_phase_offset_ns "$phazev2"
+setprop debug.sf.high_fps_early_phase_offset_ns "$phazev2"
+setprop debug.sf.high_fps_late_app_phase_offset_ns "$phazev6"
+setprop debug.sf.high_fps_late_sf_phase_offset_ns "$phazev6"
+
+setprop debug.sf.vsync_phase_offset_ns "-$phazev2"
+setprop debug.sf.vsync_event_phase_offset_ns "-$phazev2"
+
+setprop debug.sf.region_sampling_duration_ns "$phazev4"
+setprop debug.sf.cached_set_render_duration_ns "$phazev4"
+
+setprop debug.sf.early_app_phase_offset_ns "$phazev2"
+setprop debug.sf.early_gl_app_phase_offset_ns "$phazev2"
+
+setprop debug.sf.early_gl_phase_offset_ns "$phazev4"
+setprop debug.sf.early_phase_offset_ns "$phazev4"
+
+setprop debug.sf.region_sampling_timer_timeout_ns "$phazev7"
+
+setprop debug.sf.region_sampling_period_ns "$phazev6"
+setprop debug.sf.phase_offset_threshold_for_next_vsync_ns "$phazev6"
+}
+
 final_optimization() {
 # Enable performance tuning & hardware acceleration
   setprop debug.performance.tuning 1
@@ -136,6 +192,9 @@ final_optimization() {
 # Run simpleperf for lighter logging
   simpleperf --log fatal --log-to-android-buffer 6
   
+# fstrim every reboot
+  write global fstrim_mandatory_interval 1
+  
 # Adjust animation
   write global window_animation_scale 0.8
   write global transition_animation_scale 0.8
@@ -143,6 +202,13 @@ final_optimization() {
   
 # Disable app standby ( battery usage may increase )
   write global app_standby_enabled 0
+  
+# device_config optimization from nrao [ https://github.com/iamlooper/NRAO ]
+  cmd device_config put runtime_native_boot disable_lock_profiling true
+  cmd device_config put runtime_native_boot iorap_readahead_enable true
+  cmd device_config put activity_manager max_phantom_processes 2147483647
+  cmd device_config put activity_manager max_cached_processes 256
+  cmd device_config put activity_manager max_empty_time_millis 43200000
 }
   
 # ----------------- MAIN EXECUTION -----------------
@@ -150,6 +216,7 @@ main() {
     game_manager
     miui_boost_feature
     bypass_refresh_rate
+    surfaceflinger_autoset
     final_optimization
 }
 
