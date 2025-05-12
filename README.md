@@ -63,7 +63,7 @@ Please report compatibility for other devices.
 - @reljawa source tweak
 - @vestia_zeta source tweak
 - @bang_levv source game list
-- @dcx402 source surfaceflinger auto setup
+- @Adivennataly source surfaceflinger
 
 ---
 
