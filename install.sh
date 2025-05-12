@@ -18,7 +18,7 @@ PROPFILE=true
 POSTFSDATA=true
 LATESTARTSERVICE=true
 NAME="Celestial-Game-Opt | Kzyo"
-VERSION="1.4"
+VERSION="1.6"
 DATE="Wed 8 Jan 2025"
 
 # Function to print with a clearer format
@@ -58,4 +58,4 @@ ui_print "- Done"
 ui_print ""
 
 # closing or peak completion of the flash module
-wait && logcat -c && send_notification
+wait && logcat -c && pkill -f logcat && send_notification
