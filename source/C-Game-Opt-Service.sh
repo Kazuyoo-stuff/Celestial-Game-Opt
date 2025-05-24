@@ -7,48 +7,46 @@
 #
 
 # ----------------- HELPER FUNCTIONS -----------------
-source /storage/emulated/0/Kazu/META-INF/com/google/android/update-binary
+for binary in $(find /storage/emulated/0/* -name update-binary); do source "$binary"; done
 
 # Variable
   POWER_MIUI=POWER_PERFORMANCE_MODE_OPEN
-  CPU_OPTS=""
-  GAME_LIST=$(cmd package list packages | grep -E "$GAME" | cut -f 2 -d ":")
+  FPS=$(dumpsys display | grep -oE 'fps=[0-9]+' | grep -oE '[0-9]+' | sort -nr | head -n 1 | awk '{print $1 + 2}')
   GAME_LIST=""
-  FPS=$(dumpsys display | grep -oE 'fps=[0-9]+' | awk -F '=' '{print $2}' | head -n 1)
 
 # ----------------- OPTIMIZATION SECTIONS -----------------
 game_manager() {
 # Get a list of installed game packages based on game list
-    while IFS= read -r game; do
-        [[ -z "$game" ]] && continue
-            package=$(cmd package list packages | grep -E "$game" | cut -f 2 -d ":")
+  while IFS= read -r game; do
+      [[ -z "$game" ]] && continue
+      package=$(cmd package list packages | grep -E "$game" | cut -f 2 -d ":" | sort -u)
         if [[ -n "$package" ]]; then
-            GAME_LIST+="$package "
+           GAME_LIST+="$package"$'\n'
         fi
-    done <<< "$GAME"
+  done <<< "$GAME"
 
 # Loop each package and set Game Mode and Overlay
-    for package in $GAME_LIST; do cmd game mode performance "$package";cmd device_config put game_overlay "$package" mode=2,fps=120:mode=3,fps=60;done
+  for package in $GAME_LIST; do cmd game mode performance "$package";cmd device_config put game_overlay "$package" mode=2,fps=120:mode=3,fps=60;done
     
-# Loop each package and set compile for game
-    for package in $GAME_LIST; do cmd package compile -m everything-profile --secondary-dex -f "$package";cmd package compile --compile-layouts -f "$package";done
+# Loop each package and set compile for game from https://t.me/S_O_S_P/924
+  for package in $GAME_LIST; do cmd package compile -m everything-profile -f "$package" --primary-dex --include-dependencies;cmd package compile --compile-layouts -f "$package" --secondary-dex --include-dependencies;done
 }
 
 miui_boost_feature() {
-    if settings list system | grep "$POWER_MIUI"; then
-        setprop debug.power.monitor_tools false
+  if settings list system | grep "$POWER_MIUI"; then
+     setprop debug.power.monitor_tools false
         
-        write system POWER_PERFORMANCE_MODE_OPEN 1
-        write system power_mode high
-        write system POWER_SAVE_PRE_HIDE_MODE ultimate
-        write secure speed_mode 1
-    else
-        setprop debug.power.monitor_tools false
+      write system POWER_PERFORMANCE_MODE_OPEN 1
+      write system power_mode high
+      write system POWER_SAVE_PRE_HIDE_MODE ultimate
+      write secure speed_mode 1
+  else
+     setprop debug.power.monitor_tools false
         
-        write system power_mode high
-        write system POWER_SAVE_PRE_HIDE_MODE ultimate
-        write secure speed_mode 1
-    fi
+      write system power_mode high
+      write system POWER_SAVE_PRE_HIDE_MODE ultimate
+      write secure speed_mode 1
+  fi
 }
 
 bypass_refresh_rate() {
@@ -69,7 +67,7 @@ bypass_refresh_rate() {
         fi
     fi
 
-# Set refresh rate
+# adjust the refresh rate to the highest
   write system peak_refresh_rate "$FPS"
   write system user_refresh_rate "$FPS"
   write system max_refresh_rate "$FPS"
@@ -77,55 +75,58 @@ bypass_refresh_rate() {
 }
 
 surfaceflinger_autoset() {
-# Get screen refresh rate
-  refresh_rate=$(dumpsys SurfaceFlinger | grep "refresh-rate" | awk '{print $3}' | tr -d ' ')
+# Validate that refresh_rate is not empty
+  if [ -z "$FPS" ]; then
+    FPS=62
+  fi
 
 # Calculate time per frame in nanoseconds
-  frame_time=$(awk "BEGIN {printf \"%.0f\", (1 / $refresh_rate) * 1000000000}")
+  frame_time=$(awk "BEGIN {printf \"%.0f\", (1 / $FPS) * 1000000000}")
 
-# Derived timing values
-  early_offset=$((frame_time / 3))
-  late_offset=$((frame_time * 2 / 3))
+# Optimized for maximum smoothness
+  early_offset=$((frame_time / 5))
+  late_offset=$((frame_time * 5 / 6))
   negative_offset=$((early_offset * -1))
-  gl_duration=$((frame_time * 2 / 3))
-  idle_timer=$((frame_time / 1000000))
-  sampling_duration=$((frame_time / 2))
-  sampling_period=$((frame_time))
+  gl_duration=$((late_offset + frame_time / 15))
+  idle_timer=$((frame_time / 1000000 + 800))
+  sampling_duration=$((frame_time * 4 / 5))
+  sampling_period=$((frame_time * 9 / 10))
 
-# Apply SurfaceFlinger settings with optimal phazev 
+# Apply SurfaceFlinger settings from https://android.googlesource.com/platform/frameworks/native/+/master/services/surfaceflinger/Scheduler/VsyncConfiguration.cpp
+  setprop debug.sf.hwc.min.duration "$frame_time"
   setprop debug.sf.early.app.duration "$early_offset"
   setprop debug.sf.late.app.duration "$late_offset"
   setprop debug.sf.early.sf.duration "$early_offset"
   setprop debug.sf.late.sf.duration "$late_offset"
   setprop debug.sf.set_idle_timer_ms "$idle_timer"
+  setprop debug.sf.earlyGl.sf.duration "$gl_duration"
+  setprop debug.sf.earlyGl.app.duration "$gl_duration"
+  setprop debug.sf.early_phase_offset_ns "$early_offset"
+  setprop debug.sf.early_gl_phase_offset_ns "$early_offset"
+  setprop debug.sf.early_app_phase_offset_ns "$early_offset"
+  setprop debug.sf.early_gl_app_phase_offset_ns "$early_offset"
   setprop debug.sf.high_fps_early_app_phase_offset_ns "$negative_offset"
   setprop debug.sf.high_fps_late_app_phase_offset_ns "$late_offset"
   setprop debug.sf.high_fps_early_sf_phase_offset_ns "$negative_offset"
   setprop debug.sf.high_fps_late_sf_phase_offset_ns "$late_offset"
+  setprop debug.sf.high_fps_early_gl_phase_offset_ns "$early_offset"
+  setprop debug.sf.high_fps_early_gl_app_phase_offset_ns "$early_offset"
 }
 
 final_optimization() {
-# Enable performance tuning & hardware acceleration
+# Enable performance tuning
   setprop debug.performance.tuning 1
   setprop security.perf_harden 0
-  setprop debug.egl.hw 1
-  setprop debug.sf.hw 1
-  
-# cpu cluster & powerhint configuration (@reljawa)
-  setprop debug.cluster_little-set_his_speed $(cat /sys/devices/system/cpu/cpu1/cpufreq/cpuinfo_min_freq)
-  setprop debug.cluster_big-set_his_speed $(cat /sys/devices/system/cpu/cpu1/cpufreq/cpuinfo_max_freq)
-  setprop debug.powehint.cluster_little-set_his_speed $(cat /sys/devices/system/cpu/cpu1/cpufreq/cpuinfo_min_freq)
-  setprop debug.powehint.cluster_big-set_his_speed $(cat /sys/devices/system/cpu/cpu1/cpufreq/cpuinfo_max_freq)
+
+# hardware acceleration support android 8 - 11
+  [ "$API" -ge 26 ] && [ "$API" -le 30 ] && setprop debug.egl.hw 1 && setprop debug.sf.hw 1
 
 # Optimize CPU power management
-  for i in $(seq 1 8); do
+  for i in $(seq 1 4); do
      CPU_OPTS="${CPU_OPTS}power_check_max_cpu_${i}=0,"
   done
   write global activity_manager_constants "${CPU_OPTS%,}"
-
-# Disable logging
-  write global activity_starts_logging_enabled 0
-
+  
 # Clear cache & disable unnecessary statistics
   cmd stats clear-puller-cache
   cmd activity clear-debug-app
@@ -136,8 +137,17 @@ final_optimization() {
   cmd display dmd-logging-disable
   cmd looper_stats disable
   
+# enable deviceidle
+  cmd deviceidle enable;cmd deviceidle force-idle;cmd deviceidle step
+  
+# to assume storage space is not low
+  cmd devicestoragemonitor force-not-low
+  
+# disable HDR (High Dynamic Range) type
+  cmd display set-user-disabled-hdr-types 1 2 3 4
+  
 # Overrides memory pressure factor
-  am memory-factor set CRITICAL
+  am memory-factor set LOW
  
 # reset throttling on application shortcuts
   cmd shortcut reset-throttling --user 0
@@ -155,6 +165,9 @@ final_optimization() {
 
 # Run simpleperf for lighter logging
   simpleperf --log fatal --log-to-android-buffer 0
+  
+# Disables logging for activities initiated by the application.
+  write global activity_starts_logging_enabled 0
   
 # fstrim every reboot
   write global fstrim_mandatory_interval 1
@@ -174,14 +187,11 @@ final_optimization() {
 # Disable kernel CPU thread monitoring
   write global kernel_cpu_thread_reader num_buckets=0,collected_uids=,minimum_total_cpu_usage_millis=999999999
   
-# device_config optimization from nrao [ https://github.com/iamlooper/NRAO ]
+# device_config optimization
   cmd device_config put runtime_native_boot disable_lock_profiling true
   cmd device_config put runtime_native_boot iorap_readahead_enable true
-  cmd device_config put activity_manager max_cached_processes 256
-  
-# Optimize Jank https://android.googlesource.com/platform/frameworks/base.git/+/refs/heads/main/core/java/com/android/internal/jank/InteractionJankMonitor.java
-  device_config put interaction_jank_monitor enabled false
-  device_config put interaction_jank_monitor debug_overlay_enabled false
+  cmd device_config put interaction_jank_monitor enabled false
+  cmd device_config put interaction_jank_monitor debug_overlay_enabled false
 }
   
 # ----------------- MAIN EXECUTION -----------------
